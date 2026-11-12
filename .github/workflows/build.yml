@@ -35,11 +35,12 @@ jobs:
       - uses: actions/checkout@v5
       - name: Build dependencies
         run: ci/gh-run.sh deps sh ci/install-build-deps.sh --asterisk
-      - name: Cache Asterisk build
-        uses: actions/cache@v4
+      - name: Restore Asterisk build
+        id: ast-cache
+        uses: actions/cache/restore@v4
         with:
           path: /usr/src/ast-${{ matrix.asterisk }}
-          key: ast-src-deb${{ matrix.debian }}-${{ matrix.arch }}-${{ matrix.asterisk }}-${{ hashFiles('ci/build-asterisk.sh') }}-v1
+          key: ast-src-deb${{ matrix.debian }}-${{ matrix.arch }}-${{ matrix.asterisk }}-${{ hashFiles('ci/build-asterisk.sh') }}-v2
       - name: Build and install Asterisk ${{ matrix.asterisk }}
         run: |
           D=/usr/src/ast-${{ matrix.asterisk }}
@@ -49,6 +50,13 @@ jobs:
             ci/gh-run.sh asterisk sh ci/build-asterisk.sh ${{ matrix.asterisk }} "$D"
             cd "$D" && mv asterisk-*/ asterisk
           fi
+      # Save right away so a later chan_dongle failure doesn't discard it.
+      - name: Save Asterisk build
+        if: steps.ast-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /usr/src/ast-${{ matrix.asterisk }}
+          key: ${{ steps.ast-cache.outputs.cache-primary-key }}
       - name: Build chan_dongle (warnings as errors) and unit tests
         run: |
           echo "::add-matcher::.github/gcc-problem-matcher.json"
