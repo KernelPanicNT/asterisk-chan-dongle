@@ -1,0 +1,64 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Asterisk built from the official source tarball on Debian 13 (trixie).
+  source:
+    name: Debian ${{ matrix.debian }} / Asterisk ${{ matrix.asterisk }} (source)
+    runs-on: ubuntu-latest
+    container: debian:${{ matrix.debian }}
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: ['13']
+        asterisk: ['24', '22', '20']
+    steps:
+      - name: Install git
+        run: apt-get update -qq && apt-get install -y -qq git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Build dependencies
+        run: sh ci/install-build-deps.sh --asterisk
+      - name: Cache Asterisk build
+        id: cache-ast
+        uses: actions/cache@v4
+        with:
+          path: /usr/src/ast-${{ matrix.asterisk }}
+          key: ast-src-deb${{ matrix.debian }}-${{ matrix.asterisk }}-${{ hashFiles('ci/build-asterisk.sh') }}-v1
+      - name: Build and install Asterisk ${{ matrix.asterisk }}
+        run: |
+          if [ -d /usr/src/ast-${{ matrix.asterisk }}/asterisk ]; then
+            cd /usr/src/ast-${{ matrix.asterisk }}/asterisk && make -s install >/dev/null && make -s samples >/dev/null && ldconfig && asterisk -V
+          else
+            sh ci/build-asterisk.sh ${{ matrix.asterisk }} /usr/src/ast-${{ matrix.asterisk }}
+            cd /usr/src/ast-${{ matrix.asterisk }} && mv asterisk-*/ asterisk
+          fi
+      - name: Build chan_dongle (warnings as errors) and unit tests
+        run: sh ci/build-module.sh
+      - name: Runtime smoke test
+        run: sh ci/smoke-test.sh
+
+  # Asterisk packages exactly as FreePBX 17 installs them (Debian 12).
+  freepbx17:
+    name: FreePBX 17 / Debian 12 / Asterisk ${{ matrix.asterisk }} (Sangoma packages)
+    runs-on: ubuntu-latest
+    container: debian:12
+    strategy:
+      fail-fast: false
+      matrix:
+        asterisk: ['22', '23']
+    steps:
+      - name: Install git
+        run: apt-get update -qq && apt-get install -y -qq git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Build dependencies
+        run: sh ci/install-build-deps.sh
+      - name: FreePBX 17 Asterisk ${{ matrix.asterisk }} packages
+        run: sh ci/install-freepbx-asterisk.sh ${{ matrix.asterisk }}
+      - name: Build chan_dongle (warnings as errors) and unit tests
+        run: sh ci/build-module.sh
+      - name: Runtime smoke test
+        run: sh ci/smoke-test.sh

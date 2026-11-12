@@ -1,0 +1,16 @@
+{
+  "name": "chan_dongle — Debian 13 / Asterisk 24",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": { "ASTERISK_VERSION": "24" }
+  },
+  "remoteUser": "vscode",
+  "hostRequirements": { "cpus": 4 },
+  "postCreateCommand": "sh ci/build-module.sh && sh ci/smoke-test.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-vscode.cpptools", "timonwong.shellcheck"]
+    }
+  }
+}
