@@ -72,7 +72,7 @@ $(PROJS): $(chan_dongles_so_OBJS) Makefile
 	$(CHMOD) 755 $@
 	mv $@ chan_dongle.so
 
-.c.o: Makefile config.h
+%.o: %.c Makefile config.h
 	$(CC) $(CFLAGS) $(MAKE_DEPS) -o $@ -c $<
 
 check: tests

@@ -16,7 +16,7 @@ set -- "$@"
 
 ./configure "$@"
 make clean
-make all
+make -k all
 make check
 
 echo "==> Built: $(pwd)/chan_dongle.so ($(cat VERSION))"
