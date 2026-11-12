@@ -74,15 +74,25 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"$AST" -C "$T/etc/asterisk.conf" -f -n -q >"$T/log/console.log" 2>&1 &
+"$AST" -C "$T/etc/asterisk.conf" -f -n -vvv </dev/null >"$T/log/console.log" 2>&1 &
 PID=$!
 
 i=0
-until rx "core waitfullybooted" | grep -q "fully booted"; do
+until last=$(rx "core waitfullybooted") && echo "$last" | grep -q "fully booted"; do
     i=$((i + 1))
     if [ $i -gt 60 ] || ! kill -0 "$PID" 2>/dev/null; then
-        echo "asterisk did not boot" >&2
-        cat "$T/log/console.log" "$T/log/messages.log" 2>/dev/null >&2 || true
+        {
+            echo "asterisk did not boot (after ${i}s)"
+            if kill -0 "$PID" 2>/dev/null; then
+                echo "process $PID still running"
+            else
+                rc=0; wait "$PID" || rc=$?; echo "process exited with status $rc"
+            fi
+            echo "--- last rx output:"; echo "${last:-}"
+            echo "--- run dir:"; ls -la "$T/run" || true
+            echo "--- console.log:"; tail -n 40 "$T/log/console.log" 2>/dev/null || true
+            echo "--- messages.log:"; tail -n 20 "$T/log/messages.log" 2>/dev/null || true
+        } >&2
         exit 1
     fi
     sleep 1

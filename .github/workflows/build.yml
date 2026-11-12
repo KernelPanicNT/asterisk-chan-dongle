@@ -44,7 +44,7 @@ jobs:
         run: |
           D=/usr/src/ast-${{ matrix.asterisk }}
           if [ -d "$D/asterisk" ]; then
-            cd "$D/asterisk" && make -s install >/dev/null && make -s samples >/dev/null && ldconfig && asterisk -V
+            cd "$D/asterisk" && make -s install install-headers >/dev/null && make -s samples >/dev/null && ldconfig && asterisk -V
           else
             ci/gh-run.sh asterisk sh ci/build-asterisk.sh ${{ matrix.asterisk }} "$D"
             cd "$D" && mv asterisk-*/ asterisk

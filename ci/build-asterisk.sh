@@ -46,7 +46,7 @@ menuselect/menuselect --disable BUILD_NATIVE \
     menuselect.makeopts
 
 make -s -j"$JOBS" >build.log 2>&1 || { tail -n 80 build.log; exit 1; }
-$SUDO make -s install >install.log 2>&1 || { tail -n 50 install.log; exit 1; }
+$SUDO make -s install install-headers >install.log 2>&1 || { tail -n 50 install.log; exit 1; }
 [ -f /etc/asterisk/asterisk.conf ] || $SUDO make -s samples >/dev/null 2>&1
 $SUDO ldconfig
 
