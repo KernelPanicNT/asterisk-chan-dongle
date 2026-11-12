@@ -1,0 +1,5 @@
+*.sh text eol=lf
+bootstrap text eol=lf
+configure.ac text eol=lf
+Makefile.in text eol=lf
+.devcontainer/Dockerfile text eol=lf

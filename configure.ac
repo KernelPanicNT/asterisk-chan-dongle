@@ -1,14 +1,15 @@
 dnl init
 dnl AC_REVISION($Revision: 1.30 $)
-AC_PREREQ([2.60])
-AC_INIT([chan_dongle],[1.1],[https://github.com/bg111/asterisk-chan-dongle/issues],[chan_dongle],[https://github.com/bg111/asterisk-chan-dongle/])
-PACKAGE_REVISION="43gh=47cg"
+AC_PREREQ([2.69])
+dnl Version follows Semantic Versioning 2.0.0; the single source of truth is ./VERSION
+AC_INIT([chan_dongle],[m4_esyscmd_s([cat VERSION])],[https://github.com/KernelPanicNT/asterisk-chan-dongle/issues],[chan_dongle],[https://github.com/KernelPanicNT/asterisk-chan-dongle/])
+dnl Revision: "git describe" when building from a checkout, "release" otherwise.
+PACKAGE_REVISION=`(cd "$srcdir" && git describe --always --dirty --abbrev=8) 2>/dev/null || echo release`
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([chan_dongle.c])
 AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
-AC_CANONICAL_SYSTEM
 AC_CANONICAL_HOST
 
 dnl AM_INIT_AUTOMAKE
@@ -31,16 +32,36 @@ AC_ARG_WITH(
 	[ with_iconv="../include /usr/include /usr/local/include /opt/local/include" ]
 )
 
-dnl  Required: asterisk version
+dnl  Asterisk version: --with-astversion=M.m.u, or auto-detected from
+dnl  pkg-config (asterisk.pc) or from the output of "asterisk -V".
 AC_ARG_WITH(
 	[astversion],
-	AS_HELP_STRING([--with-astversion=M.m.u], [set asterisk version; for example: 14 or 13.13.1]),
-	[ if echo "$with_astversion" | grep -qE '^[[0-9]][[0-9]]?(\.[[0-9]][[0-9]]?){0,2}$'
-          then with_astversion=$(echo $with_astversion | sed -e 's/.*/&.0.0/' | tr . '\n' |
-				 head -n3 | sed -e 's/^.$/0&/' | tr -d '\n' | sed -e 's/^0*//')
-	  else AC_MSG_ERROR([Invalid --with-astversion=M.m.u value]); fi ],
-	[ AC_MSG_ERROR([Please set --with-astversion=M.m.u (major.minor.micro)]) ]
+	AS_HELP_STRING([--with-astversion=M.m.u], [set asterisk version; for example: 22 or 24.0.0 (default: auto-detect)]),
+	[],
+	[ with_astversion=auto ]
 )
+if test "x$with_astversion" = "xauto" -o "x$with_astversion" = "xyes" ; then
+	AC_MSG_CHECKING([for installed asterisk version])
+	with_astversion=`pkg-config --modversion asterisk 2>/dev/null | sed -e 's/[[^0-9.]].*//'`
+	if test -z "$with_astversion" ; then
+		for astbin in asterisk /usr/sbin/asterisk /usr/local/sbin/asterisk ; do
+			with_astversion=`$astbin -V 2>/dev/null | sed -n -e 's/^Asterisk \([[0-9]][[0-9.]]*\).*/\1/p'`
+			test -n "$with_astversion" && break
+		done
+	fi
+	if test -z "$with_astversion" ; then
+		AC_MSG_RESULT([not found])
+		AC_MSG_ERROR([Cannot detect the asterisk version, please set --with-astversion=M.m.u (major.minor.micro)])
+	fi
+	AC_MSG_RESULT([$with_astversion])
+fi
+if echo "$with_astversion" | grep -qE '^[[0-9]][[0-9]]?(\.[[0-9]][[0-9]]?){0,2}$'
+then with_astversion=$(echo $with_astversion | sed -e 's/.*/&.0.0/' | tr . '\n' |
+		 head -n3 | sed -e 's/^.$/0&/' | tr -d '\n' | sed -e 's/^0*//')
+else AC_MSG_ERROR([Invalid --with-astversion=M.m.u value: $with_astversion]); fi
+if test "$with_astversion" -lt 200000 ; then
+	AC_MSG_WARN([Asterisk older than 20 is not tested by this fork; tested: 20, 22, 24 (LTS)])
+fi
 AC_DEFINE_UNQUOTED([ASTERISK_VERSION_NUM], [$with_astversion],
 		   [The Asterisk version as configured --with-astversion.])
 
@@ -236,8 +257,22 @@ AC_DEFUN([AC_CHECK_DESTDIR], [
 dnl This detection is kind of flaky. Don't rely on it. The module
 dnl directory could be lib64 or x86_64-linux-gnu or even somewhere
 dnl completely custom.
+dnl Prefer the astmoddir configured in asterisk.conf (FreePBX, Debian multiarch).
+if test -z "$DESTDIR" ; then
+    for astconf in /etc/asterisk/asterisk.conf /usr/local/etc/asterisk/asterisk.conf ; do
+	test -f "$astconf" || continue
+	astmoddir=`sed -n -e 's/^[[[:space:]]]*astmoddir[[[:space:]]]*=>*[[[:space:]]]*\([[^[:space:];]]*\).*/\1/p' "$astconf" | head -n1`
+	if test -n "$astmoddir" && test -f "$astmoddir/pbx_config.so" ; then
+	    AC_MSG_NOTICE([using astmoddir from $astconf: $astmoddir])
+	    DESTDIR=$astmoddir
+	    break
+	fi
+    done
+fi
 AC_CHECK_DESTDIR([ \
     /usr/lib/asterisk/modules /usr/lib64/asterisk/modules \
+    /usr/lib/x86_64-linux-gnu/asterisk/modules /usr/lib/aarch64-linux-gnu/asterisk/modules \
+    /lib/x86_64-linux-gnu/asterisk/modules /lib/aarch64-linux-gnu/asterisk/modules \
     /usr/local/lib/asterisk/modules /opt/local/lib/asterisk/modules])
 
 dnl Checks for library functions.
@@ -250,7 +285,7 @@ if test "x$enable_debug" = "xyes" ; then
   CFLAGS="$CFLAGS -O0 -g3"
   AC_DEFINE([__DEBUG__], [1], [Build with debugging])
 else
-  CFLAGS="$CFLAGS -O6"
+  CFLAGS="$CFLAGS -O2"
 fi
 
 dnl Asterisk header files use lots of old style declarations, ignore those.
