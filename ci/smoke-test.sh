@@ -29,6 +29,16 @@ if [ -z "${ASTMODDIR:-}" ]; then
 fi
 [ -n "${ASTMODDIR:-}" ] || { echo "cannot find asterisk modules dir" >&2; exit 2; }
 
+# The core registers its config options against the XML documentation
+# (documentation/core-en_US.xml); without it "Stasis initialization failed"
+# and Asterisk exits. Reuse the installed data dir read-only.
+if [ -z "${ASTDATADIR:-}" ]; then
+    for d in /var/lib/asterisk /usr/share/asterisk /usr/local/share/asterisk; do
+        [ -f "$d/documentation/core-en_US.xml" ] && { ASTDATADIR=$d; break; }
+    done
+fi
+[ -n "${ASTDATADIR:-}" ] || { echo "cannot find asterisk documentation (core-en_US.xml); install the -doc package" >&2; exit 2; }
+
 T=$(mktemp -d /tmp/chan_dongle-smoke.XXXXXX)
 mkdir -p "$T/etc" "$T/mod" "$T/run" "$T/log" "$T/spool" "$T/lib" "$T/data" "$T/key"
 for f in "$ASTMODDIR"/*.so; do ln -s "$f" "$T/mod/"; done
@@ -41,7 +51,7 @@ astmoddir => $T/mod
 astvarlibdir => $T/lib
 astdbdir => $T/lib
 astkeydir => $T/key
-astdatadir => $T/data
+astdatadir => $ASTDATADIR
 astagidir => $T/data/agi-bin
 astspooldir => $T/spool
 astrundir => $T/run
