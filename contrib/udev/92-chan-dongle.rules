@@ -1,0 +1,15 @@
+# udev rules for chan_dongle (Huawei 3G modems with voice).
+# Install: cp 92-chan-dongle.rules /etc/udev/rules.d/ && udevadm control --reload && udevadm trigger
+#
+# - Keep ModemManager away from the modem (it grabs the AT port and breaks
+#   chan_dongle). Debian 13 desktops/servers often ship ModemManager.
+# - Give the "dialout" group read/write access to the ttyUSB ports. Add the
+#   user running Asterisk to it:  usermod -aG dialout asterisk
+#   (FreePBX runs Asterisk as "asterisk"; restart with: fwconsole restart)
+
+ACTION!="add|change", GOTO="chan_dongle_end"
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="12d1", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="12d1", ENV{ID_MM_DEVICE_IGNORE}="1", GROUP="dialout", MODE="0660"
+
+LABEL="chan_dongle_end"

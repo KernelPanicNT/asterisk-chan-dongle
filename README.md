@@ -42,15 +42,42 @@ Some useful AT commands:
     AT^SYSCFG=13,0,3FFFFFFF,0,3     #modem 2G only, automatic search any band, no roaming
     AT^U2DIAG=0                     #enable modem function
 
+Supported platforms (this fork):
+--------------------------------
+
+| OS | Asterisk | Notes |
+|----|----------|-------|
+| Debian 13 (trixie) | 24 LTS, 22 LTS, 20 LTS | built from the official source tarball |
+| Debian 12 (bookworm) + FreePBX 17 | 22, 23 | Sangoma `asteriskNN-devel` packages |
+
+Every combination is built with warnings-as-errors, unit tested and
+smoke-tested at runtime by `.github/workflows/build.yml`. FreePBX
+instructions: [contrib/freepbx/README.md](contrib/freepbx/README.md).
+Changes are listed in [CHANGELOG.md](CHANGELOG.md); versions follow
+[Semantic Versioning](https://semver.org/) (single source: `VERSION`).
+
 Building:
 ----------
 
+    $ sudo sh ci/install-build-deps.sh     # Debian/Ubuntu build dependencies
     $ ./bootstrap
-    $ ./configure --with-astversion=13.7
+    $ ./configure
     $ make
+    $ make check                            # unit tests
+    $ sudo make install
 
-If you run a different version of Asterisk, you'll need to update the
-`13.7` as appropriate, obviously.
+`configure` detects the Asterisk version (via `pkg-config asterisk` or
+`asterisk -V`) and the modules directory (via `astmoddir` in
+`/etc/asterisk/asterisk.conf`, then the usual and Debian multiarch paths).
+Override them with `--with-astversion=24.0.0` and `DESTDIR=/path/to/modules`.
+
+To test the built module against the installed Asterisk without touching
+its configuration (an isolated instance is started in a temp dir):
+
+    $ sh ci/smoke-test.sh
+
+A Debian 13 + Asterisk 24 development container is provided in
+`.devcontainer/` (GitHub Codespaces / VS Code Dev Containers).
 
 If you did not `make install` Asterisk in the usual location and configure
 cannot find the asterisk header files in `/usr/include/asterisk`, you may
