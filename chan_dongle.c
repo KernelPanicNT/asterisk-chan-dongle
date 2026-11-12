@@ -155,7 +155,7 @@ EXPORT_DEF int lock_try(const char * devname, char ** lockname)
 	int pid = 0;
 	int assigned;
 	int fd2;
-	char name[1024];
+	char name[PATH_MAX + 32];	/* "/var/spool/lock/LCK.." + basename */
 	char buffer[65];
 
 	lock_build(devname, name, sizeof(name));
