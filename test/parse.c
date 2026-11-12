@@ -289,6 +289,13 @@ void test_parse_cmgr()
 				.msg_utf8 = "INFO SMS 23/03, 18:10: Costo chiamata E. 0,24. Il credito è E. 48,05. Per info su eventuali opzioni attive e bonus residui chiama 40916.",
 			},
 		},
+		/* truncated responses must fail cleanly, without touching unset marks */
+		{ "+CMGR: 0,,110",
+			{ .res = -1, .oa = "", .msg_utf8 = "" },
+		},
+		{ "+CMGR: 0",
+			{ .res = -1, .oa = "", .msg_utf8 = "" },
+		},
 	};
 
 	unsigned idx = 0;
@@ -306,6 +313,8 @@ void test_parse_cmgr()
 		result.str = input = strdup(cases[idx].input);
 		result.msg_utf8 = buf;
 		result.msg_len = sizeof(buf);
+		buf[0] = '\0';
+		oa[0] = '\0';
 
 		fprintf(stderr, "/* %u */ %s(\"%s\")...", idx, "at_parse_cmgr", input);
 		result.res = at_parse_cmgr(

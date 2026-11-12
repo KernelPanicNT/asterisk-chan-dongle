@@ -358,7 +358,10 @@ EXPORT_DEF int at_parse_cmgr(char *str, size_t len, int *tpdu_type, char *sca, s
 	uint16_t msg16_tmp[256];
 
 	if (mark_line(str, delimiters, marks) != ITEMS_OF(marks)) {
+		/* truncated/partial response (e.g. "+CMGR: 0,,110" without the
+		 * PDU line): marks[] is not fully set, don't touch it */
 		chan_dongle_err = E_PARSE_CMGR_LINE;
+		return -1;
 	}
 	tpdu_length = strtol(marks[1] + 1, &end, 10);
 	if (tpdu_length <= 0 || end[0] != '\r') {

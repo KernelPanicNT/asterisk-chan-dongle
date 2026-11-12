@@ -48,6 +48,9 @@ Port of the fork to Debian 13 (trixie), Asterisk 24 LTS and FreePBX 17.
   stops reading audio can no longer block an Asterisk thread forever in
   `write()` while holding the device lock (1.1 behaviour), and a silent AT
   port is detected by the idle `AT` ping and the device reconnected.
+- `at_parse_cmgr()` read uninitialised pointers when a `+CMGR:` response was
+  truncated (fewer than two commas or no PDU line); it now fails cleanly
+  with "Can't parse +CMGR response line". Unit tests added.
 - An invalid `mindtmfinterval` overwrote `mindtmfduration` instead of
   resetting itself; the `mindtmfduration` error message named `mindtmfgap`.
 
