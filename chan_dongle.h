@@ -96,6 +96,8 @@ typedef struct pvt_stat
 
 	uint32_t		calls_answered[2];		/*!< number of outgoing and incoming/waiting calls answered */
 	uint32_t		calls_duration[2];		/*!< seconds of outgoing and incoming/waiting calls */
+
+	uint32_t		audio_timeouts;			/*!< number of calls hung up by the audio stall watchdog */
 } pvt_stat_t;
 
 #define PVT_STAT_T(stat, name)			((stat)->name)
@@ -140,6 +142,7 @@ typedef struct pvt
 
 	char			dtmf_digit;			/*!< last DTMF digit */
 	struct timeval		dtmf_begin_time;		/*!< time of begin of last DTMF digit */
+	struct timeval		a_last_read;			/*!< last time audio was read from the modem (audio stall watchdog) */
 	struct timeval		dtmf_end_time;			/*!< time of end of last DTMF digit */
 
 	int			timeout;			/*!< used to set the timeout for data */

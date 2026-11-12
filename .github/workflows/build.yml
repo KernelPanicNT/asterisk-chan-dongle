@@ -8,14 +8,21 @@ on:
 jobs:
   # Asterisk built from the official source tarball on Debian 13 (trixie).
   source:
-    name: Debian ${{ matrix.debian }} / Asterisk ${{ matrix.asterisk }} (source)
-    runs-on: ubuntu-latest
+    name: Debian ${{ matrix.debian }} ${{ matrix.arch }} / Asterisk ${{ matrix.asterisk }} (source)
+    runs-on: ${{ matrix.runner }}
     container: debian:${{ matrix.debian }}
     strategy:
       fail-fast: false
       matrix:
         debian: ['13']
         asterisk: ['24', '22', '20']
+        arch: [amd64]
+        runner: [ubuntu-latest]
+        include:
+          # Raspberry Pi 4/5 (Debian 13 arm64): FreePBX packages are amd64-only,
+          # so on a Pi Asterisk is built from source.
+          - { debian: '13', asterisk: '24', arch: arm64, runner: ubuntu-24.04-arm }
+          - { debian: '13', asterisk: '22', arch: arm64, runner: ubuntu-24.04-arm }
     steps:
       - name: Install git
         run: apt-get update -qq && apt-get install -y -qq git ca-certificates
@@ -27,7 +34,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/src/ast-${{ matrix.asterisk }}
-          key: ast-src-deb${{ matrix.debian }}-${{ matrix.asterisk }}-${{ hashFiles('ci/build-asterisk.sh') }}-v1
+          key: ast-src-deb${{ matrix.debian }}-${{ matrix.arch }}-${{ matrix.asterisk }}-${{ hashFiles('ci/build-asterisk.sh') }}-v1
       - name: Build and install Asterisk ${{ matrix.asterisk }}
         run: |
           if [ -d /usr/src/ast-${{ matrix.asterisk }}/asterisk ]; then

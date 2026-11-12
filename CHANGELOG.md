@@ -26,12 +26,30 @@ Port of the fork to Debian 13 (trixie), Asterisk 24 LTS and FreePBX 17.
   shown by `dongle show version` is now taken from `git describe`.
 - CI scripts in `ci/`: build dependencies, Asterisk from source, FreePBX 17
   Asterisk packages, module build, and an isolated runtime smoke test.
-- GitHub Actions matrix: Debian 13 × Asterisk 20/22/24 (source) and Debian 12
-  × FreePBX 17 Asterisk 22/23 packages; warnings as errors.
+- GitHub Actions matrix: Debian 13 amd64 × Asterisk 20/22/24 and Debian 13
+  arm64 (Raspberry Pi) × Asterisk 22/24 built from source, and Debian 12 ×
+  FreePBX 17 Asterisk 22/23 packages; warnings as errors.
 - Debian 13 + Asterisk 24 devcontainer for GitHub Codespaces.
 - `contrib/udev/92-chan-dongle.rules` (ModemManager ignore, `dialout` access).
 - `contrib/freepbx/`: FreePBX 17 guide and `extensions_custom.conf` example.
 - `CHANGELOG.md`.
+- Audio stall watchdog ("ghost call" protection): new `audiotimeout` option
+  (seconds, default 30, `0` disables). If an established call receives no
+  audio from the modem for that long, the channel is hung up with cause
+  `NETWORK_OUT_OF_ORDER`, AMI event `DongleAudioTimeout` is emitted and the
+  device is reinitialised as soon as it is free. Visible in
+  `dongle show device settings` and counted in `dongle show device statistics`
+  ("Audio stall hangups"). Previously a hung modem kept the call — and the
+  bridged trunk — up indefinitely; `hangup`, `dongle reset` and
+  `core restart` could not clear it.
+
+### Fixed
+- Audio and AT ttys are non-blocking (from the wdoekes base): a modem that
+  stops reading audio can no longer block an Asterisk thread forever in
+  `write()` while holding the device lock (1.1 behaviour), and a silent AT
+  port is detected by the idle `AT` ping and the device reconnected.
+- An invalid `mindtmfinterval` overwrote `mindtmfduration` instead of
+  resetting itself; the `mindtmfduration` error message named `mindtmfgap`.
 
 ### Changed
 - Project URLs now point to KernelPanicNT/asterisk-chan-dongle.

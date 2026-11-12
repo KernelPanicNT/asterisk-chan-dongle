@@ -374,6 +374,8 @@ static void activate_call(struct cpvt* cpvt)
 		if(pvt->dsp)
 			ast_dsp_digitreset(pvt->dsp);
 		pvt->dtmf_digit = 0;
+		/* (re)start the audio stall watchdog clock for this call */
+		pvt->a_last_read = ast_tv(0, 0);
 		ast_debug (6, "[%s] call idx %d was master\n", PVT_ID(pvt), cpvt->call_idx);
 	}
 }
@@ -649,6 +651,65 @@ static void write_conference(struct pvt * pvt, const char * buffer, size_t lengt
 #define subclass_integer	subclass
 #endif /* ^1.8- */
 
+/*!
+ * \brief Audio stall watchdog.
+ *
+ * During an established call the modem streams audio on the audio tty
+ * continuously (silence included). If nothing has been read for
+ * 'audiotimeout' seconds the modem stopped passing audio (firmware hang,
+ * USB stall): without this check the call stays up forever ("ghost call"),
+ * keeping the bridged trunk open and billed, and the device unusable.
+ *
+ * On detection the channel is soft-hung-up (which ends the GSM call through
+ * channel_hangup()) and the device is restarted as soon as it is free.
+ *
+ * \note Called with the channel locked and pvt->lock held.
+ * \retval 1 stall detected, channel hung up
+ * \retval 0 otherwise
+ */
+static int check_audio_stall(struct ast_channel *channel, struct cpvt *cpvt, struct pvt *pvt)
+{
+	const int timeout = CONF_SHARED(pvt, audiotimeout);
+	struct timeval now;
+	int64_t idle;
+	char buf[128];
+
+	if (timeout <= 0 || !CPVT_IS_MASTER(cpvt))
+		return 0;
+
+	now = ast_tvnow();
+	/* Only an established call must carry audio. Keep the clock running
+	 * from "now" while dialing/alerting/held and right after activation. */
+	if (!CPVT_IS_ACTIVE(cpvt) || ast_tvzero(pvt->a_last_read)) {
+		pvt->a_last_read = now;
+		return 0;
+	}
+
+	idle = ast_tvdiff_ms(now, pvt->a_last_read);
+	if (idle < (int64_t) timeout * 1000)
+		return 0;
+
+	ast_log(LOG_ERROR, "[%s] No audio from the modem for %lld ms during an active call "
+		"(audiotimeout=%d s): hanging up %s and scheduling a device restart\n",
+		PVT_ID(pvt), (long long) idle, timeout, ast_channel_name(channel));
+	snprintf(buf, sizeof(buf), "No audio for %lld ms on %s; call hung up, device restart scheduled",
+		(long long) idle, ast_channel_name(channel));
+	manager_event_message_raw("DongleAudioTimeout", PVT_ID(pvt), buf);
+
+	/* don't re-trigger while the hangup is being processed */
+	pvt->a_last_read = now;
+	PVT_STAT(pvt, audio_timeouts)++;
+
+	/* reinitialise the modem (ATZ etc.) once the device has no channels */
+	pvt->desired_state = DEV_STATE_RESTARTED;
+	if (pvt->restart_time != RESTATE_TIME_NOW)
+		pvt->restart_time = RESTATE_TIME_CONVENIENT;
+
+	ast_channel_hangupcause_set(channel, AST_CAUSE_NETWORK_OUT_OF_ORDER);
+	ast_softhangup_nolock(channel, AST_SOFTHANGUP_DEV);
+	return 1;
+}
+
 #/* */
 static struct ast_frame* channel_read (struct ast_channel* channel)
 {
@@ -679,6 +740,11 @@ static struct ast_frame* channel_read (struct ast_channel* channel)
 	if (pvt->a_timer && ast_channel_fdno(channel) == 1)
 	{
 		ast_timer_ack (pvt->a_timer, 1);
+		if (check_audio_stall(channel, cpvt, pvt))
+		{
+			f = NULL;
+			goto e_return;
+		}
 		timing_write (pvt);
 		ast_debug (7, "[%s] *** timing ***\n", PVT_ID(pvt));
 	}
@@ -719,6 +785,7 @@ static struct ast_frame* channel_read (struct ast_channel* channel)
 			if(CPVT_TEST_FLAG(cpvt, CALL_FLAG_MULTIPARTY))
 				write_conference(pvt, cpvt->a_read_frame.data.ptr, res);
 
+			pvt->a_last_read = ast_tvnow();
 			PVT_STAT(pvt, a_read_bytes) += res;
 			PVT_STAT(pvt, read_frames) ++;
 			if(res < FRAME_SIZE)
@@ -844,6 +911,11 @@ static int channel_write (struct ast_channel* channel, struct ast_frame* f)
 	}
 
 	if(!CPVT_IS_ACTIVE(cpvt))
+		goto e_return;
+
+	/* also checked here: without a timing module channel_read() is only
+	 * woken by modem audio, which is exactly what stops on a stall */
+	if (check_audio_stall(channel, cpvt, pvt))
 		goto e_return;
 
 	if(CPVT_TEST_FLAG(cpvt, CALL_FLAG_MULTIPARTY) && !CPVT_TEST_FLAG(cpvt, CALL_FLAG_BRIDGE_CHECK))

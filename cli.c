@@ -150,6 +150,7 @@ static char* cli_show_device_settings (struct ast_cli_entry* e, int cmd, struct 
 		ast_cli (a->fd, "  Minimal DTMF Gap        : %d\n", CONF_SHARED(pvt, mindtmfgap));
 		ast_cli (a->fd, "  Minimal DTMF Duration   : %d\n", CONF_SHARED(pvt, mindtmfduration));
 		ast_cli (a->fd, "  Minimal DTMF Interval   : %d\n", CONF_SHARED(pvt, mindtmfinterval));
+		ast_cli (a->fd, "  Audio Timeout           : %d%s\n", CONF_SHARED(pvt, audiotimeout), CONF_SHARED(pvt, audiotimeout) ? " s" : " (disabled)");
 		ast_cli (a->fd, "  Initial device state    : %s\n\n", dev_state2str(CONF_SHARED(pvt, initstate)));
 
 		ast_mutex_unlock (&pvt->lock);
@@ -319,6 +320,7 @@ static char* cli_show_device_statistics (struct ast_cli_entry* e, int cmd, struc
 		ast_cli (a->fd, "  Waiting calls               : %u\n", PVT_STAT(pvt, cw_calls));
 		ast_cli (a->fd, "  Handled input calls         : %u\n", PVT_STAT(pvt, in_calls_handled));
 		ast_cli (a->fd, "  Fails to PBX run            : %u\n", PVT_STAT(pvt, in_pbx_fails));
+		ast_cli (a->fd, "  Audio stall hangups         : %u\n", PVT_STAT(pvt, audio_timeouts));
 		ast_cli (a->fd, "  Attempts to outgoing calls  : %u\n", PVT_STAT(pvt, out_calls));
 		ast_cli (a->fd, "  Answered outgoing calls     : %u\n", PVT_STAT(pvt, calls_answered[CALL_DIR_OUTGOING]));
 		ast_cli (a->fd, "  Answered incoming calls     : %u\n", PVT_STAT(pvt, calls_answered[CALL_DIR_INCOMING]));

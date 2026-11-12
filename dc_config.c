@@ -95,6 +95,7 @@ EXPORT_DEF void dc_sconfig_fill_defaults(struct dc_sconfig * config)
 	config->mindtmfgap		= DEFAULT_MINDTMFGAP;
 	config->mindtmfduration		= DEFAULT_MINDTMFDURATION;
 	config->mindtmfinterval		= DEFAULT_MINDTMFINTERVAL;
+	config->audiotimeout		= DEFAULT_AUDIOTIMEOUT;
 }
 
 #/* */
@@ -208,7 +209,7 @@ EXPORT_DEF void dc_sconfig_fill(struct ast_config * cfg, const char * cat, struc
 			config->mindtmfduration = (int) strtol (v->value, (char**) NULL, 10);
 			if ((config->mindtmfduration == 0 && errno == EINVAL) || config->mindtmfduration < 0)
 			{
-				ast_log(LOG_ERROR, "Invalid value for 'mindtmfgap' '%s', setting default %d\n", v->value, DEFAULT_MINDTMFDURATION);
+				ast_log(LOG_ERROR, "Invalid value for 'mindtmfduration' '%s', setting default %d\n", v->value, DEFAULT_MINDTMFDURATION);
 				config->mindtmfduration = DEFAULT_MINDTMFDURATION;
 			}
 		}
@@ -219,7 +220,24 @@ EXPORT_DEF void dc_sconfig_fill(struct ast_config * cfg, const char * cat, struc
 			if ((config->mindtmfinterval == 0 && errno == EINVAL) || config->mindtmfinterval < 0)
 			{
 				ast_log(LOG_ERROR, "Invalid value for 'mindtmfinterval' '%s', setting default %d\n", v->value, DEFAULT_MINDTMFINTERVAL);
-				config->mindtmfduration = DEFAULT_MINDTMFINTERVAL;
+				config->mindtmfinterval = DEFAULT_MINDTMFINTERVAL;
+			}
+		}
+		else if (!strcasecmp (v->name, "audiotimeout"))
+		{
+			char *end = NULL;
+			long val;
+
+			errno = 0;
+			val = strtol (v->value, &end, 10);
+			if (errno || end == v->value || *end != '\0' || val < 0 || val > 3600)
+			{
+				ast_log(LOG_ERROR, "Invalid value for 'audiotimeout' '%s' (0..3600 seconds), setting default %d\n", v->value, DEFAULT_AUDIOTIMEOUT);
+				config->audiotimeout = DEFAULT_AUDIOTIMEOUT;
+			}
+			else
+			{
+				config->audiotimeout = (int) val;
 			}
 		}
 	}

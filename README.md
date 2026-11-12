@@ -47,7 +47,8 @@ Supported platforms (this fork):
 
 | OS | Asterisk | Notes |
 |----|----------|-------|
-| Debian 13 (trixie) | 24 LTS, 22 LTS, 20 LTS | built from the official source tarball |
+| Debian 13 (trixie) amd64 | 24 LTS, 22 LTS, 20 LTS | built from the official source tarball |
+| Debian 13 (trixie) arm64 (Raspberry Pi 4/5) | 24 LTS, 22 LTS | built from source (FreePBX packages are amd64-only) |
 | Debian 12 (bookworm) + FreePBX 17 | 22, 23 | Sangoma `asteriskNN-devel` packages |
 
 Every combination is built with warnings-as-errors, unit tested and

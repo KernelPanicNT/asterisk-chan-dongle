@@ -91,6 +91,9 @@ typedef struct dc_sconfig
 
 	int			mindtmfinterval;		/*!< minimal DTMF interval beetween ends in ms, applied only on same digit */
 #define DEFAULT_MINDTMFINTERVAL	200
+
+	int			audiotimeout;			/*!< seconds without audio from the modem during an active call before hanging up; 0 = disabled */
+#define DEFAULT_AUDIOTIMEOUT	30
 } dc_sconfig_t;
 
 /* Global settings */
