@@ -800,13 +800,19 @@ EXPORT_DEF int tpdu_parse_deliver(const uint8_t *pdu, size_t pdu_length, int tpd
 		case 0x7: /* HIGH 0111: Compressed, marked for self-destruct with class */
 			chan_dongle_err = E_UNKNOWN;
 			return -1;
-		case 0xC: /* HIGH 1100: "Discard" MWI */
-		case 0xD: /* HIGH 1101: "Store" MWI */
+		case 0xC: /* HIGH 1100: "Discard" MWI, GSM 7 bit default alphabet */
+		case 0xD: /* HIGH 1101: "Store" MWI, GSM 7 bit default alphabet */
 			/* if 0xC then the recipient may discard message
 			 * contents, and only show notification */
 			/*inactive_active = (dcs_lo & 8);*/
 			reserved = (dcs_lo & 4); /* bit 2 reserved */
 			/* (dsc_lo & 3): {VM, Fax, E-mail, Other} */
+			/* (operator voicemail notifications use these) */
+			alphabet = PDU_DCS_ALPHABET_7BIT;
+			break;
+		case 0xE: /* HIGH 1110: "Store" MWI, uncompressed UCS2 */
+			reserved = (dcs_lo & 4); /* bit 2 reserved */
+			alphabet = PDU_DCS_ALPHABET_UCS2;
 			break;
 		default:
 			chan_dongle_err = E_UNKNOWN;
@@ -822,13 +828,6 @@ EXPORT_DEF int tpdu_parse_deliver(const uint8_t *pdu, size_t pdu_length, int tpd
 			return -1;
 		}
 	}
-	if (alphabet == PDU_DCS_ALPHABET_8BIT) {
-		// TODO: What to do with binary messages? Are there any?
-		// Return an error as it is dangerous to forward the raw binary data as text
-		chan_dongle_err = E_INVALID_CHARSET;
-		return -1;
-	}
-
 	/* calculate number of octets in UD */
 	int udl_nibbles = -1; /* only used for 7bit alphabet */
 	unsigned udl_bytes = udl;
@@ -836,10 +835,19 @@ EXPORT_DEF int tpdu_parse_deliver(const uint8_t *pdu, size_t pdu_length, int tpd
 		udl_nibbles = (udl * 7 + 3) / 4;
 		udl_bytes = (udl_nibbles + 1) / 2;
 	}
-	if (udl_bytes != pdu_length - i) {
-		chan_dongle_err = E_UNKNOWN;
+	if (udl_bytes > pdu_length - i) {
+		/* truncated user data */
+		chan_dongle_err = E_INVALID_TPDU_LENGTH;
 		return -1;
 	}
+	if (udl_bytes < pdu_length - i) {
+		/* some modems/SMSCs append filler octets after the user data:
+		 * ignore them instead of rejecting the message */
+		ast_log(LOG_DEBUG, "Ignoring %u trailing octet(s) after SMS user data\n",
+			(unsigned)(pdu_length - i - udl_bytes));
+		pdu_length = i + udl_bytes;
+	}
+	int app_port = 0; /* UDH application port addressing: binary payload */
 
 	if (PDUTYPE_UDHI(tpdu_type) == PDUTYPE_UDHI_HAS_HEADER) {
 		if (i + 1 > pdu_length) {
@@ -911,6 +919,10 @@ EXPORT_DEF int tpdu_parse_deliver(const uint8_t *pdu, size_t pdu_length, int tpd
 					udh->ls = pdu[i++];
 					udhl -= 1; /* consume the 1 data byte from udhl budget */
 					break;
+				case 0x04: /* Application port addressing, 8 bit */
+				case 0x05: /* Application port addressing, 16 bit (WAP push, ...) */
+					app_port = 1;
+					/* fall through */
 				default:
 					/* skip rest of IEI */
 					i += iei_len;
@@ -936,10 +948,28 @@ EXPORT_DEF int tpdu_parse_deliver(const uint8_t *pdu, size_t pdu_length, int tpd
 			chan_dongle_err = E_DECODE_GSM7;
 			return -1;
 		}
+	} else if (alphabet == PDU_DCS_ALPHABET_8BIT) {
+		/* 8 bit data: some senders use it for plain text (decoded here as
+		 * ISO-8859-1). Real binary payloads (application ports, control
+		 * bytes) are still rejected: forwarding them as text is unsafe. */
+		if (app_port) {
+			chan_dongle_err = E_INVALID_CHARSET;
+			return -1;
+		}
+		for (int k = 0; k < msg_len; ++k) {
+			uint8_t c = pdu[i + k];
+			if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') {
+				chan_dongle_err = E_INVALID_CHARSET;
+				return -1;
+			}
+			/* store as big-endian UTF-16 code unit, like the UCS2 path */
+			((uint8_t *)msg)[2 * k] = 0;
+			((uint8_t *)msg)[2 * k + 1] = c;
+		}
+		out_len = msg_len;
 	} else {
 		out_len = msg_len / 2;
 		memcpy((char*)msg, pdu + i, msg_len);
-		msg[out_len] = '\0';
 	}
 	msg[out_len] = '\0';
 

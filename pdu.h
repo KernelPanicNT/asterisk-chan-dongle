@@ -26,7 +26,7 @@
 
 typedef struct pdu_udh
 {
-	uint8_t ref;
+	uint16_t ref;			/* 8 or 16 bit (IEI 0x08) concatenation reference */
 	uint8_t parts, order;
 	uint8_t ls, ss;
 } pdu_udh_t;
