@@ -1,251 +1,256 @@
-<a href="https://travis-ci.org/wdoekes/asterisk-chan-dongle">
-  <img alt="Travis Build Status"
-       src="https://api.travis-ci.org/wdoekes/asterisk-chan-dongle.svg"/>
-</a>
-
-chan\_dongle channel driver for Huawei UMTS cards
-=================================================
-
-WARNING:
-
-This channel driver is in alpha stage.
-I am not responsible if this channel driver will eat your money on
-your SIM card or do any unpredicted things.
-
-Please use a recent Linux kernel, 2.6.33+ recommended.
-If you use FreeBSD, 8.0+ recommended.
-
-This channel driver should work with the folowing UMTS cards:
-* Huawei K3715
-* Huawei E169 / K3520
-* Huawei E155X
-* Huawei E175X
-* Huawei E261
-* Huawei K3765
-
-Check complete list in:
-http://wiki.e1550.mobi/doku.php?id=requirements#list_of_supported_models
-
-Before using the channel driver make sure to:
-* Disable PIN code on your SIM card
-
-Supported features:
-* Place voice calls and terminate voice calls
-* Send SMS and receive SMS
-* Send and receive USSD commands / messages
-
-Some useful AT commands:
-
-    AT+CCWA=0,0,1                   #disable call-waiting
-    AT+CFUN=1,1                     #reset dongle
-    AT^CARDLOCK="<code>"            #unlock code
-    AT^SYSCFG=13,0,3FFFFFFF,0,3     #modem 2G only, automatic search any band, no roaming
-    AT^U2DIAG=0                     #enable modem function
-
-Supported platforms (this fork):
---------------------------------
-
-| OS | Asterisk | Notes |
-|----|----------|-------|
-| Debian 13 (trixie) amd64 | 24 LTS, 22 LTS, 20 LTS | built from the official source tarball |
-| Debian 13 (trixie) arm64 (Raspberry Pi 4/5) | 24 LTS, 22 LTS | built from source (FreePBX packages are amd64-only) |
-| Debian 12 (bookworm) + FreePBX 17 | 22, 23 | Sangoma `asteriskNN-devel` packages |
-
-Every combination is built with warnings-as-errors, unit tested and
-smoke-tested at runtime by `.github/workflows/build.yml`. FreePBX
-instructions: [contrib/freepbx/README.md](contrib/freepbx/README.md).
-Changes are listed in [CHANGELOG.md](CHANGELOG.md); versions follow
-[Semantic Versioning](https://semver.org/) (single source: `VERSION`).
-
-Building:
-----------
-
-    $ sudo sh ci/install-build-deps.sh     # Debian/Ubuntu build dependencies
-    $ ./bootstrap
-    $ ./configure
-    $ make
-    $ make check                            # unit tests
-    $ sudo make install
-
-`configure` detects the Asterisk version (via `pkg-config asterisk` or
-`asterisk -V`) and the modules directory (via `astmoddir` in
-`/etc/asterisk/asterisk.conf`, then the usual and Debian multiarch paths).
-Override them with `--with-astversion=24.0.0` and `DESTDIR=/path/to/modules`.
-
-To test the built module against the installed Asterisk without touching
-its configuration (an isolated instance is started in a temp dir):
-
-    $ sh ci/smoke-test.sh
-
-A Debian 13 + Asterisk 24 development container is provided in
-`.devcontainer/` (GitHub Codespaces / VS Code Dev Containers).
-
-If you did not `make install` Asterisk in the usual location and configure
-cannot find the asterisk header files in `/usr/include/asterisk`, you may
-optionally pass `--with-asterisk=PATH/TO/INCLUDE`.
-
-Here is an example for the dialplan:
-------------------------------------
-
-**WARNING**: *This example uses the raw SMS message passed to System() directly.
-No sane person would do that with untrusted data without escaping/removing the
-single quotes.*
-
-    [dongle-incoming]
-    exten => sms,1,Verbose(Incoming SMS from ${CALLERID(num)} ${BASE64_DECODE(${SMS_BASE64})})
-    exten => sms,n,System(echo '${STRFTIME(${EPOCH},,%Y-%m-%d %H:%M:%S)} - ${DONGLENAME} - ${CALLERID(num)}: ${BASE64_DECODE(${SMS_BASE64})}' >> /var/log/asterisk/sms.txt)
-    exten => sms,n,Hangup()
-
-    exten => ussd,1,Verbose(Incoming USSD: ${BASE64_DECODE(${USSD_BASE64})})
-    exten => ussd,n,System(echo '${STRFTIME(${EPOCH},,%Y-%m-%d %H:%M:%S)} - ${DONGLENAME}: ${BASE64_DECODE(${USSD_BASE64})}' >> /var/log/asterisk/ussd.txt)
-    exten => ussd,n,Hangup()
-
-    exten => s,1,Dial(SIP/2001@othersipserver)
-    exten => s,n,Hangup()
-
-    [othersipserver-incoming]
-
-    exten => _X.,1,Dial(Dongle/r1/${EXTEN})
-    exten => _X.,n,Hangup
-
-    exten => *#123#,1,DongleSendUSSD(dongle0,${EXTEN})
-    exten => *#123#,n,Answer()
-    exten => *#123#,n,Wait(2)
-    exten => *#123#,n,Playback(vm-goodbye)
-    exten => *#123#,n,Hangup()
-
-    exten => _#X.,1,DongleSendSMS(dongle0,${EXTEN:1},"Please call me",1440,yes,"magicID")
-    exten => _#X.,n,Answer()
-    exten => _#X.,n,Wait(2)
-    exten => _#X.,n,Playback(vm-goodbye)
-    exten => _#X.,n,Hangup()
-
-You can also use this:
-----------------------
-
-Call using a specific group:
-
-    exten => _X.,1,Dial(Dongle/g1/${EXTEN})
-
-Call using a specific group in round robin:
-
-    exten => _X.,1,Dial(Dongle/r1/${EXTEN})
-
-Call using a specific dongle:
-
-    exten => _X.,1,Dial(Dongle/dongle0/${EXTEN})
-
-Call using a specific provider name:
-
-    exten => _X.,1,Dial(Dongle/p:PROVIDER NAME/${EXTEN})
-
-Call using a specific IMEI:
-
-    exten => _X.,1,Dial(Dongle/i:123456789012345/${EXTEN})
-
-Call using a specific IMSI prefix:
-
-    exten => _X.,1,Dial(Dongle/s:25099203948/${EXTEN})
-
-How to store your own number:
-
-    dongle cmd dongle0 AT+CPBS=\"ON\"
-    dongle cmd dongle0 AT+CPBW=1,\"+123456789\",145
-
-
-Other CLI commands:
--------------------
-
-    dongle reset <device>
-    dongle restart gracefully <device>
-    dongle restart now <device>
-    dongle restart when convenient <device>
-    dongle show device <device>
-    dongle show devices
-    dongle show version
-    dongle sms <device> number message
-    dongle ussd <device> ussd
-    dongle stop gracefully <device>
-    dongle stop now <device>
-    dongle stop when convenient <device>
-    dongle start <device>
-    dongle restart gracefully <device>
-    dongle restart now <device>
-    dongle restart when convenient <device>
-    dongle remove gracefully <device>
-    dongle remove now <device>
-    dongle remove when convenient <device>
-    dongle reload gracefully
-    dongle reload now
-    dongle reload when convenient
-
-For reading installation notes please look to INSTALL file.
-
-
-Gain control and Jitter buffer
---------------------------------
-
-
-<img src="https://cloud.githubusercontent.com/assets/6702424/26686554/9253bc18-46ed-11e7-9bce-cad8e2396435.png" 
-width="800px" height="" />
-
-
-In order to perform good quality calls you will need to take care of:
-
-* **Automatic gain control**:
-
-chan_dongle does not control the gain of the audio stream it receive.
-This result of Alice hearing Bob's voice loud and noisy.
-It is possible to manually manage the gain in *dongle.conf* but
-the better option is by far to apply automatic gain control with
-the dialplan function AGC.
-
-
-* **Jitter buffer**:
-
-Since asterisk 12 it is no longer possible to enable Jitter buffer
-in dongle.conf it has to be applied in the dialplan.
-The lack of Jitter buffer result in severe loss in the transport
-of the voice from Bob to Alice. 
-
-
-#### Dialplan example
-
-To set JITTERBUFFER and AGC in the dialplan on the appropriate channel
-regardless of who is initiating the call we will have to use
-the "b" option of Dial:
-
-b( context^exten^priority )
-
-Before initiating an outgoing call, Gosub to the specified
-location using the newly created channel. 
-
-The Gosub will be executed for each destination channel."
-
-    [from-dongle]
-    ; This will be executed by an indbound Dongle channel ( call initiated on the dongle side )
-    exten => _[+0-9].,1,Dial(SIP/bob,b(from-dongle^outbound^1)) ;
-
-    ; This will be executed by an outbound SIP channel ( channel generated by dial )
-    exten => outbound,1,Set(JITTERBUFFER(adaptive)=default)
-    same => n,Set(AGC(rx)=4000)
-    same => n,Return()
-
-    [from-sip]
-    ; This will be executed by an inbound SIP channel ( call initiated on the SIP side )
-    exten => _[+0-9].,1,Set(JITTERBUFFER(adaptive)=2000,1600,120)
-    same => n,Set(AGC(rx)=4000)
-    same => n,Dial(Dongle/i:${IMEI_OF_MY_DONGLE}/${NUMBER_OF_BOB}) 
-
-
-Note: To use automatic gain control dialplan function (AGC) you will need
-to compile Asterisk with func_speex ( see in menuselect ). 
-On raspberry Pi you will need to compile and install speex and speexdsp yourself,
-the version of speex provided by the depos does not support AGC.
-(because compiled with fixed point instead of floating point)
-see: [HOWTO](https://gist.github.com/garronej/01f0dac45efe9161969a83890c019efa)
-
-
-For additional information about Huawei dongle usage look to
-chan\_dongle Wiki at http://wiki.e1550.mobi and chan\_dongle project home at
-https://github.com/wdoekes/asterisk-chan-dongle/
+# chan_dongle — Asterisk channel driver for Huawei 3G modems
+
+[![build](https://github.com/KernelPanicNT/asterisk-chan-dongle/actions/workflows/build.yml/badge.svg)](https://github.com/KernelPanicNT/asterisk-chan-dongle/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/KernelPanicNT/asterisk-chan-dongle?sort=semver)](https://github.com/KernelPanicNT/asterisk-chan-dongle/releases)
+[![license](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE.txt)
+
+`chan_dongle` turns a Huawei UMTS/3G USB modem with voice support into an
+Asterisk channel: place and receive GSM calls, send and receive SMS, and run
+USSD codes from the dialplan, the CLI or the Asterisk Manager Interface.
+
+This fork brings the driver to **Debian 13 (trixie)**, **Asterisk 24 LTS**
+and **FreePBX 17**. It is based on the maintained
+[wdoekes/asterisk-chan-dongle](https://github.com/wdoekes/asterisk-chan-dongle)
+line and adds reliability fixes for unattended gateways.
+
+> [!WARNING]
+> A SIM card in a GSM gateway can generate real charges. Test with a limited
+> plan first, and disable the SIM PIN before use.
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Compatibility](#compatibility)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Dialplan](#dialplan)
+- [CLI, applications and AMI](#cli-applications-and-ami)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Versioning and changelog](#versioning-and-changelog)
+- [Credits and license](#credits-and-license)
+
+## Features
+
+- Outgoing and incoming voice calls, call waiting, hold and conference
+- SMS send and receive: GSM 7-bit (including national language shift
+  tables), UCS-2/UTF-16 with emoji, 8-bit text and concatenated messages, plus
+  delivery reports (SQLite-backed `smsdb`)
+- USSD send and receive
+- Device selection by name, group, round robin, provider, IMEI or IMSI
+- **Ghost-call protection** (`audiotimeout`): an established call that stops
+  receiving audio from the modem is hung up and the modem is reinitialised,
+  instead of keeping the call, and any bridged trunk, open indefinitely
+- Non-blocking modem I/O and idle AT keep-alive: a hung modem is detected and
+  reconnected without blocking Asterisk
+- Automatic detection of the Asterisk version and modules directory
+  (FreePBX, Debian multiarch)
+
+## Compatibility
+
+### Tested on hardware
+
+| Modem | Host | OS / Asterisk | Driver version |
+|---|---|---|---|
+| Huawei E1550 | Raspberry Pi | Raspbian 9 / Asterisk 13.20 | 1.1 series (previous production setup) |
+
+Hardware validation of the 2.x series is in progress; this table will be
+extended as it is completed. Reports from other setups are welcome; please
+open an issue with your modem model, firmware and results.
+
+### Theoretical (validated in CI, no modem attached)
+
+Every combination below is built with warnings as errors, passes the unit
+tests and loads, registers and unloads cleanly in a real Asterisk instance
+([build workflow](.github/workflows/build.yml)).
+
+| Platform | Architecture | Asterisk | Source |
+|---|---|---|---|
+| Debian 13 (trixie) | amd64 | 20, 22, **24 LTS** | official source tarball |
+| Debian 13 (trixie), e.g. Raspberry Pi 4/5 | arm64 | 22, **24 LTS** | official source tarball |
+| FreePBX 17 on Debian 12 (bookworm) | amd64 | 22, 23 | Sangoma `asteriskNN` packages |
+
+Notes:
+
+- FreePBX 17 officially supports Debian 12 only, and its package repository
+  is amd64-only. On Raspberry Pi, build Asterisk from source.
+- FreePBX 18 (Debian 13) is not released yet.
+- Modems: the voice-capable Huawei models supported upstream, such as the
+  E1550, E1752, E155X, E169/K3520, E175X, E261, K3715 and K3765. Voice must
+  be enabled in the modem firmware.
+
+## Installation
+
+### Debian 13 with Asterisk built from source
+
+```sh
+sudo apt install git
+git clone https://github.com/KernelPanicNT/asterisk-chan-dongle.git
+cd asterisk-chan-dongle
+sudo sh ci/install-build-deps.sh        # compiler, autotools, sqlite3
+./bootstrap
+./configure                             # detects Asterisk version and module dir
+make
+make check                              # unit tests
+sudo make install
+```
+
+`configure` takes the Asterisk version from `pkg-config asterisk` or
+`asterisk -V`, and the module directory from `astmoddir` in
+`/etc/asterisk/asterisk.conf` (falling back to the usual and multiarch paths).
+Override them with `--with-astversion=24.0.0`, `--with-asterisk=/path/to/include`
+or `DESTDIR=/path/to/modules`.
+
+### FreePBX 17
+
+Install the `asteriskNN-devel` package that matches the Asterisk installed by
+FreePBX, then build as above. The complete guide, with trunk, inbound route and
+dialplan setup, is in [contrib/freepbx/README.md](contrib/freepbx/README.md).
+
+### Device access
+
+```sh
+sudo cp contrib/udev/92-chan-dongle.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger
+sudo usermod -aG dialout asterisk       # user that runs Asterisk
+```
+
+The rule keeps ModemManager away from the modem and grants the `dialout`
+group access to its serial ports.
+
+### Verify without touching your configuration
+
+```sh
+sh ci/smoke-test.sh
+```
+
+This starts an isolated Asterisk instance, with its own config, run and log
+directories in a temporary folder, loads the freshly built module and checks
+its channel type, CLI commands, applications and AMI actions.
+
+## Configuration
+
+Copy `etc/dongle.conf` to `/etc/asterisk/dongle.conf`. The main options are:
+
+| Option | Section | Description |
+|---|---|---|
+| `audio`, `data` | device | Audio and AT serial ports (e.g. `/dev/ttyUSB1`, `/dev/ttyUSB2`) |
+| `imei`, `imsi` | device | Identify the modem by IMEI/IMSI instead of port; recommended, since ttyUSB numbers change |
+| `context` | defaults/device | Dialplan context for incoming calls, SMS and USSD |
+| `group` | defaults/device | Group number for `Dongle/gN` and `Dongle/rN` dialing |
+| `exten` | defaults/device | Extension for incoming calls when the SIM does not report its number |
+| `rxgain`, `txgain` | defaults/device | Fixed audio gain |
+| `audiotimeout` | defaults/device | Seconds without modem audio before an active call is hung up (default `30`, `0` disables) |
+| `autodeletesms` | defaults/device | Delete SMS from the SIM after reading |
+| `resetdongle` | defaults/device | Send `ATZ` during initialisation |
+| `callwaiting` | defaults/device | `auto`, `yes` or `no` |
+| `dtmf` | defaults/device | `off`, `inband` or `relax` DTMF detection |
+| `smsdb`, `csmsttl` | general | SMS database path and lifetime of incomplete multipart messages |
+
+Useful one-off AT commands:
+
+```text
+AT^U2DIAG=0                     # modem function only (no CD-ROM / storage)
+AT+CCWA=0,0,1                   # disable call waiting
+AT^SYSCFG=13,0,3FFFFFFF,0,3     # 2G only, any band, no roaming
+AT+CFUN=1,1                     # reset the modem
+```
+
+Send them with `dongle cmd dongle0 AT^U2DIAG=0`.
+
+## Dialplan
+
+Incoming calls, SMS and USSD arrive in the device `context`. These channel
+variables are set: `DONGLENAME`, `DONGLEPROVIDER`, `DONGLEIMEI`, `DONGLEIMSI`,
+`DONGLENUMBER`; for SMS also `SMS`, `SMS_BASE64` and `SMS_TS`; for USSD also
+`USSD`, `USSD_BASE64` and `USSD_TYPE`.
+
+```ini
+[from-dongle]
+exten => _[+0-9].,1,Dial(PJSIP/2001)
+exten => sms,1,Verbose(1,SMS from ${CALLERID(num)}: ${BASE64_DECODE(${SMS_BASE64})})
+ same => n,Set(FILE(/var/log/asterisk/sms.txt,,,al)=${STRFTIME(${EPOCH},,%F %T)};${CALLERID(num)};${SMS_BASE64})
+ same => n,Hangup()
+exten => ussd,1,Verbose(1,USSD: ${BASE64_DECODE(${USSD_BASE64})})
+ same => n,Hangup()
+
+[to-gsm]
+exten => _X.,1,Dial(Dongle/g1/${EXTEN})            ; any free modem in group 1
+exten => *100#,1,DongleSendUSSD(dongle0,${EXTEN})
+exten => _#X.,1,DongleSendSMS(dongle0,${EXTEN:1},"Please call me",1440,yes)
+```
+
+> [!CAUTION]
+> SMS text is untrusted input. Never pass `${SMS}` unescaped to `System()`;
+> use `SMS_BASE64` or `FILE()` instead.
+
+Dial string forms:
+
+| Dial string | Selects |
+|---|---|
+| `Dongle/dongle0/NUMBER` | a specific device |
+| `Dongle/g1/NUMBER` | first free device in group 1 |
+| `Dongle/r1/NUMBER` | round robin in group 1 |
+| `Dongle/p:PROVIDER/NUMBER` | by operator name |
+| `Dongle/i:IMEI/NUMBER` | by IMEI |
+| `Dongle/s:IMSIPREFIX/NUMBER` | by IMSI prefix |
+
+For call quality, apply a jitter buffer and automatic gain control in the
+dialplan (`JITTERBUFFER()` and `AGC()` from `func_speex`). Use the `b()` option
+of `Dial()` to set them on the outgoing leg.
+
+## CLI, applications and AMI
+
+**CLI:** `dongle show devices`, `dongle show device settings|state|statistics <device>`,
+`dongle show version`, `dongle sms <device> <number> <message>`,
+`dongle ussd <device> <code>`, `dongle cmd <device> <AT command>`,
+`dongle reset <device>`, `dongle start|stop|restart|remove <mode> <device>`
+and `dongle reload <mode>`. `<mode>` is one of `now`, `gracefully` or
+`when convenient`.
+
+**Applications:** `DongleStatus`, `DongleSendSMS`, `DongleSendUSSD`.
+
+**AMI actions:** `DongleShowDevices`, `DongleSendSMS`, `DongleSendUSSD`,
+`DongleSetCCWA`, `DongleReset`, `DongleRestart`, `DongleStop`, `DongleStart`,
+`DongleRemove`, `DongleReload`.
+
+**AMI events:** `DongleNewSMS`, `DongleNewSMSBase64`, `DongleNewUSSD`,
+`DongleReport`, `DongleStatus`, `DongleCallStateChange`, `DongleCEND`,
+`DongleAudioTimeout` and others.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| Device stays `Not connected` | `ls -l /dev/ttyUSB*`; is the `asterisk` user in `dialout`? Is ModemManager holding the port? |
+| Only a CD-ROM / storage device appears | Switch it with `usb-modeswitch`, then `AT^U2DIAG=0` once |
+| `timedout while waiting 'OK'` | Wrong `audio`/`data` port order, or a hung modem; replug or `dongle reset` |
+| One-way or choppy audio | Prefer 2G (`AT^SYSCFG`), enable `JITTERBUFFER()` and `AGC()` |
+| Call hung up with `No audio from the modem` | The ghost-call watchdog fired; the modem stopped streaming audio. See `dongle show device statistics` |
+
+## Development
+
+- `ci/`: scripts shared by CI and local use, for build dependencies,
+  Asterisk from source, the FreePBX 17 packages, the module build and the
+  smoke test.
+- `.devcontainer/`: a Debian 13 + Asterisk 24 environment for GitHub
+  Codespaces or VS Code Dev Containers.
+- `make check` runs the unit tests (AT parsing, PDU and charset decoding,
+  buffers).
+- Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
+
+## Versioning and changelog
+
+Releases follow [Semantic Versioning](https://semver.org/). The version lives
+in [`VERSION`](VERSION). All notable changes are recorded in
+[CHANGELOG.md](CHANGELOG.md) and published with each
+[GitHub release](https://github.com/KernelPanicNT/asterisk-chan-dongle/releases).
+
+## Credits and license
+
+Originally written by Artem Makhutov and Dmitry Vagin, later developed by bg111
+and maintained upstream by Walter Doekes and contributors. Distributed under the
+[GNU General Public License v2](LICENSE.txt); see also
+[COPYRIGHT.txt](COPYRIGHT.txt).

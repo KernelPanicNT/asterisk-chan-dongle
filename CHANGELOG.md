@@ -14,6 +14,13 @@ The version number lives in [`VERSION`](VERSION) and is read by `configure.ac`.
   control bytes, e.g. WAP push) are still rejected.
 - Operator voicemail notifications (DCS message-waiting groups `0xC`/`0xD`
   GSM 7 bit and `0xE` UCS2) are decoded instead of rejected.
+- GitHub releases are published automatically for every `vX.Y.Z` tag, with
+  the matching CHANGELOG section as release notes.
+
+### Changed
+- README rewritten: features, tested and CI-validated compatibility,
+  installation (Debian 13, FreePBX 17), configuration reference, dialplan,
+  CLI/AMI reference and troubleshooting.
 
 ### Fixed
 - Incoming SMS with a TP-PID other than `0x00` are accepted (since the
