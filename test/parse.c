@@ -192,13 +192,13 @@ void test_gsm7()
 			uint16_t buf16[256];
 			int res = utf8_to_ucs2(inin, strlen(inin), buf16, 256);
 			res = gsm7_encode(buf16, res, buf16);
-			int packedsize = gsm7_pack(buf16, res, (char*)pdu, res * 2, j);
+			int packedsize = gsm7_pack(buf16, res, (char*)pdu, sizeof(pdu), j);
 			hexify(pdu, (packedsize + 1) / 2, (char*)pdu);
 			res = unhex((const char*)pdu, pdu);
-			res = gsm7_unpack_decode((const char*)pdu, packedsize, buf16, res, j, 0, 0);
+			res = gsm7_unpack_decode((const char*)pdu, packedsize, buf16, 256, j, 0, 0);
 			char rev[256];
-			res = ucs2_to_utf8(buf16, res, rev, 256);
-			rev[res] = 0;
+			res = res < 0 ? -1 : ucs2_to_utf8(buf16, res, rev, 256);
+			rev[res < 0 ? 0 : res] = 0;
 			if (strcmp(rev, inin) == 0) {
 				++ok;
 			} else {
