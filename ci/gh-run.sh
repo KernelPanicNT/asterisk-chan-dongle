@@ -20,6 +20,11 @@ annotate() { # title file lines
 }
 
 if [ "$rc" -ne 0 ] && [ -n "${GITHUB_ACTIONS:-}" ]; then
+    # failing checks first: long test logs get truncated in annotations
+    grep -E "FAIL|unsuccessful|[Ee]rror|Segmentation|Abort|done [0-9]+ tests|\*\*\*" "$log" \
+        | grep -v " OK$" | head -n 40 >"$log.fail" || true
+    annotate "$title: failures (exit $rc)" "$log.fail" 40
+    rm -f "$log.fail"
     annotate "$title: output tail (exit $rc)" "$log" 80
     annotate "$title: config.log tail" config.log 60
 fi
