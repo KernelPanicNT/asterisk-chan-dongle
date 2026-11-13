@@ -23,7 +23,7 @@
 #include "mutils.h"			/* ITEMS_OF() */
 #include "gsm7_luts.h"
 
-static char lut_hex2val[] = {
+static const signed char lut_hex2val[] = {
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
@@ -80,7 +80,7 @@ EXPORT_DEF ssize_t ucs2_to_utf8(const uint16_t *in, size_t in_length, char *out,
 }
 
 
-static char hexchar2val(unsigned char h)
+static signed char hexchar2val(unsigned char h)
 {
 	return lut_hex2val[h];
 }
@@ -93,8 +93,8 @@ EXPORT_DEF int unhex(const char *in, uint8_t *out)
 	int len = 0, nibbles = 0;
 	while (in[0]) {
 		nibbles += 1 + !!in[1];
-		char p0 = hexchar2val(*in++);
-		char p1 = *in ? hexchar2val(*in++) : 0;
+		signed char p0 = hexchar2val(*in++);
+		signed char p1 = *in ? hexchar2val(*in++) : 0;
 		if (p0 == -1 || p1 == -1) {
 			return -1;
 		}
