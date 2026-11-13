@@ -48,6 +48,12 @@ Port of the fork to Debian 13 (trixie), Asterisk 24 LTS and FreePBX 17.
   stops reading audio can no longer block an Asterisk thread forever in
   `write()` while holding the device lock (1.1 behaviour), and a silent AT
   port is detected by the idle `AT` ping and the device reconnected.
+- On ARM (Raspberry Pi), where `char` is unsigned, `unhex()` never detected
+  invalid hex digits (the `-1` marker became 255), so a corrupt SMS PDU was
+  silently decoded as garbage. The lookup table is now `signed char`.
+- Build with GCC 13/14 (Debian 13): `new_channel()` prototype/definition
+  enum-int mismatch and array-parameter bound mismatches in `at_read.h`,
+  `at_response.h` and `ringbuffer.h`.
 - `at_parse_cmgr()` read uninitialised pointers when a `+CMGR:` response was
   truncated (fewer than two commas or no PDU line); it now fails cleanly
   with "Can't parse +CMGR response line". Unit tests added.
