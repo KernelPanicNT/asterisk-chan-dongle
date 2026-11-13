@@ -1307,13 +1307,13 @@ static void set_channel_vars(struct pvt* pvt, struct ast_channel* channel)
 #if ASTERISK_VERSION_NUM >= 120000 /* 12+ */
 EXPORT_DEF struct ast_channel* new_channel(
 		struct pvt* pvt, int ast_state, const char* cid_num, int call_idx,
-		unsigned dir, call_state_t state, const char * dnid,
+		unsigned dir, unsigned state, const char * dnid,
 		const struct ast_assigned_ids *assignedids,
 		attribute_unused const struct ast_channel * requestor)
 #else /* 13- */
 EXPORT_DEF struct ast_channel* new_channel(
 		struct pvt* pvt, int ast_state, const char* cid_num, int call_idx,
-		unsigned dir, call_state_t state, const char * dnid,
+		unsigned dir, unsigned state, const char * dnid,
 		attribute_unused const struct ast_channel * requestor)
 #endif /* ^13- */
 {
