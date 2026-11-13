@@ -8,6 +8,15 @@ The version number lives in [`VERSION`](VERSION) and is read by `configure.ac`.
 
 ## [Unreleased]
 
+### Security
+- SMS and USSD text is no longer written at verbose level, which FreePBX
+  and most setups keep in persistent logs (`full`). Verbose output now shows
+  only sender, size and part numbers; the text is logged at debug level
+  (`core set debug 1 chan_dongle.so`). SMS bodies often carry one-time codes.
+- The SMS database (`smsdb.sqlite3`: message parts, sender numbers, IMSI) is
+  created with mode `0600` and existing files are tightened to it; it used to
+  follow the umask (typically world-readable `0644`).
+
 ## [2.1.0] - 2026-11-13
 
 ### Added

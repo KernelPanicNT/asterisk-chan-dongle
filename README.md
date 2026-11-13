@@ -27,6 +27,7 @@ line and adds reliability fixes for unattended gateways.
 - [Configuration](#configuration)
 - [Dialplan](#dialplan)
 - [CLI, applications and AMI](#cli-applications-and-ami)
+- [Privacy and security](#privacy-and-security)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [Versioning and changelog](#versioning-and-changelog)
@@ -219,6 +220,23 @@ and `dongle reload <mode>`. `<mode>` is one of `now`, `gracefully` or
 **AMI events:** `DongleNewSMS`, `DongleNewSMSBase64`, `DongleNewUSSD`,
 `DongleReport`, `DongleStatus`, `DongleCallStateChange`, `DongleCEND`,
 `DongleAudioTimeout` and others.
+
+## Privacy and security
+
+A GSM gateway handles personal data: SMS text (often one-time codes), phone
+numbers, and the modem IMEI and SIM IMSI. Where the driver exposes it:
+
+| Where | What | Who can read it |
+|---|---|---|
+| Verbose log (`full`) | sender number, SMS/USSD size and parts (no text) | log readers |
+| Debug log (`core set debug 1 chan_dongle.so`) | SMS and USSD text, raw AT traffic at level 5 | log readers; enable only for troubleshooting |
+| AMI events (`DongleNewSMS`, `DongleNewCMGR`, `DongleNewUSSD`, ...) | full SMS/USSD text and raw PDUs | AMI users with `call` read permission |
+| CLI, `DongleShowDevices`, `DONGLEIMEI`/`DONGLEIMSI` | IMEI, IMSI, subscriber number | console and AMI users, dialplan |
+| `smsdb.sqlite3` | parts of multipart SMS, numbers, IMSI | Asterisk user only (`0600`) |
+
+Restrict AMI accounts (`manager.conf` `read=` and `permit=`), protect the log
+directory, and treat files written by your own dialplan, such as the SMS log
+in the FreePBX example, as sensitive.
 
 ## Troubleshooting
 
