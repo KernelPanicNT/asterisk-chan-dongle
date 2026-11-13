@@ -1315,7 +1315,10 @@ static int at_response_cmgr(struct pvt* pvt, char * str, size_t len)
 			case PDUTYPE_MTI_SMS_DELIVER:
 				ast_debug (1, "[%s] Successfully read SM\n", PVT_ID(pvt));
 				if (udh.parts > 1) {
-					ast_verb (1, "[%s] Got SM part from %s: '%s'; [ref=%d, parts=%d, order=%d]\n", PVT_ID(pvt), oa, msg, udh.ref, udh.parts, udh.order);
+					/* message text only at debug level: verbose output ends up
+					 * in persistent logs (e.g. the FreePBX 'full' log) */
+					ast_verb (1, "[%s] Got SM part from %s: %zu bytes; [ref=%d, parts=%d, order=%d]\n", PVT_ID(pvt), oa, strlen(msg), udh.ref, udh.parts, udh.order);
+					ast_debug (1, "[%s] SM part text: '%s'\n", PVT_ID(pvt), msg);
 					csms_cnt = smsdb_put(pvt->imsi, oa, udh.ref, udh.parts, udh.order, msg, fullmsg);
 					if (csms_cnt <= 0) {
 						ast_log(LOG_ERROR, "[%s] Error putting SMS to SMSDB\n", PVT_ID(pvt));
@@ -1328,13 +1331,14 @@ static int at_response_cmgr(struct pvt* pvt, char * str, size_t len)
 					fullmsg_len = strlen(fullmsg);
 				} else {
 receive_as_is:
-					ast_verb (1, "[%s] Got single SM from %s: '%s'\n", PVT_ID(pvt), oa, msg);
+					ast_verb (1, "[%s] Got single SM from %s: %zu bytes\n", PVT_ID(pvt), oa, msg_len);
 					strncpy(fullmsg, msg, msg_len);
 					fullmsg[msg_len] = '\0';
 					fullmsg_len = msg_len;
 				}
 
-				ast_verb (1, "[%s] Got full SMS from %s: '%s'\n", PVT_ID(pvt), oa, fullmsg);
+				ast_verb (1, "[%s] Got full SMS from %s: %d bytes\n", PVT_ID(pvt), oa, fullmsg_len);
+				ast_debug (1, "[%s] SMS text: '%s'\n", PVT_ID(pvt), fullmsg);
 				ast_base64encode (text_base64, (unsigned char*)fullmsg, fullmsg_len, sizeof(text_base64));
 
 				manager_event_new_sms(PVT_ID(pvt), oa, fullmsg);
@@ -1433,7 +1437,8 @@ static int at_response_cusd (struct pvt * pvt, char * str, size_t len)
 
 	if (at_parse_cusd (str, &type, &cusd, &dcs))
 	{
-		ast_verb (1, "[%s] Error parsing CUSD: '%.*s'\n", PVT_ID(pvt), (int) len, str);
+		ast_log (LOG_WARNING, "[%s] Error parsing CUSD response\n", PVT_ID(pvt));
+		ast_debug (1, "[%s] Unparsable CUSD: '%.*s'\n", PVT_ID(pvt), (int) len, str);
 		return -1;
 	}
 
@@ -1483,7 +1488,8 @@ static int at_response_cusd (struct pvt * pvt, char * str, size_t len)
 	}
 	cusd_utf8_str[res] = '\0';
 
-	ast_verb (1, "[%s] Got USSD type %d '%s': '%s'\n", PVT_ID(pvt), type, typestr, cusd_utf8_str);
+	ast_verb (1, "[%s] Got USSD type %d '%s': %d bytes\n", PVT_ID(pvt), type, typestr, (int) res);
+	ast_debug (1, "[%s] USSD text: '%s'\n", PVT_ID(pvt), cusd_utf8_str);
 	ast_base64encode (text_base64, (unsigned char*)cusd_utf8_str, res, sizeof(text_base64));
 
 	// TODO: pass type
