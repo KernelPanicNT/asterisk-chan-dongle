@@ -74,9 +74,66 @@ EXPORT_DEF ssize_t utf8_to_ucs2(const char *in, size_t in_length, uint16_t *out,
 	if (res < 0) return res;
 	return res / 2;
 }
+/*!
+ * \brief Convert UTF-16BE (as received in SMS/USSD "UCS-2") to UTF-8.
+ *
+ * Unlike iconv this never fails on content: surrogate pairs (emoji etc.)
+ * are combined, and unpaired surrogates -- typical when a long SMS is split
+ * in the middle of an emoji and each part is decoded separately -- become
+ * U+FFFD instead of discarding the whole message.
+ *
+ * \param in        UTF-16 code units stored big-endian (byte order of the PDU)
+ * \param in_length number of 16-bit code units
+ * \param out_size  size of out, one byte is kept for the terminating NUL
+ * \return number of bytes written (without NUL), -1 if out is too small
+ */
 EXPORT_DEF ssize_t ucs2_to_utf8(const uint16_t *in, size_t in_length, char *out, size_t out_size)
 {
-	return convert_string((const char*)in, in_length * 2, out, out_size, "UTF-16BE", "UTF-8");
+	const uint8_t *b = (const uint8_t *)in;
+	size_t o = 0;
+
+	if (out_size == 0)
+		return -1;
+
+	for (size_t k = 0; k < in_length; ++k) {
+		uint32_t cp = ((uint32_t)b[2 * k] << 8) | b[2 * k + 1];
+
+		if (cp >= 0xD800 && cp <= 0xDBFF) {
+			uint32_t lo = 0;
+			if (k + 1 < in_length)
+				lo = ((uint32_t)b[2 * k + 2] << 8) | b[2 * k + 3];
+			if (lo >= 0xDC00 && lo <= 0xDFFF) {
+				cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+				++k;
+			} else {
+				cp = 0xFFFD;
+			}
+		} else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+			cp = 0xFFFD;
+		}
+
+		if (cp < 0x80) {
+			if (o + 1 > out_size - 1) return -1;
+			out[o++] = (char)cp;
+		} else if (cp < 0x800) {
+			if (o + 2 > out_size - 1) return -1;
+			out[o++] = (char)(0xC0 | (cp >> 6));
+			out[o++] = (char)(0x80 | (cp & 0x3F));
+		} else if (cp < 0x10000) {
+			if (o + 3 > out_size - 1) return -1;
+			out[o++] = (char)(0xE0 | (cp >> 12));
+			out[o++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+			out[o++] = (char)(0x80 | (cp & 0x3F));
+		} else {
+			if (o + 4 > out_size - 1) return -1;
+			out[o++] = (char)(0xF0 | (cp >> 18));
+			out[o++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+			out[o++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+			out[o++] = (char)(0x80 | (cp & 0x3F));
+		}
+	}
+	out[o] = '\0';
+	return (ssize_t)o;
 }
 
 
