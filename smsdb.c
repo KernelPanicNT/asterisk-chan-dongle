@@ -20,6 +20,9 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>			/* open() */
+#include <errno.h>
+#include <string.h>			/* strerror() */
 #include <unistd.h>
 #include <signal.h>
 #include <dirent.h>
@@ -232,6 +235,20 @@ static int db_open(void)
 	}
 	strcpy(dbname, CONF_GLOBAL(sms_db));
 	strcat(dbname, ".sqlite3");
+
+	/* The database holds SMS text, sender numbers and the IMSI: keep it
+	 * private to the Asterisk user. Create it 0600 (sqlite3_open would use
+	 * the umask, typically 0644) and tighten files from older versions;
+	 * SQLite gives its journal files the same permissions. */
+	{
+		int fd = open(dbname, O_RDWR | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR);
+		if (fd >= 0) {
+			close(fd);
+		}
+		if (chmod(dbname, S_IRUSR | S_IWUSR) != 0) {
+			ast_log(LOG_WARNING, "Unable to restrict permissions of '%s': %s\n", dbname, strerror(errno));
+		}
+	}
 
 	ast_mutex_lock(&dblock);
 	if (sqlite3_open(dbname, &smsdb) != SQLITE_OK) {
