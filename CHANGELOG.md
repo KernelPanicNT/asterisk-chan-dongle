@@ -8,9 +8,14 @@ The version number lives in [`VERSION`](VERSION) and is read by `configure.ac`.
 
 ## [Unreleased]
 
-## [2.0.0-rc.1] - 2026-11-12
+## [2.0.0] - 2026-11-13
 
 Port of the fork to Debian 13 (trixie), Asterisk 24 LTS and FreePBX 17.
+
+Validated in CI (build with warnings as errors, unit tests and runtime
+load/unload smoke test): Debian 13 amd64 with Asterisk 20, 22 and 24;
+Debian 13 arm64 (Raspberry Pi) with Asterisk 22 and 24; FreePBX 17
+(Debian 12, Sangoma packages) with Asterisk 22 and 23.
 
 ### Added
 - Rebased the fork (previously at bg111 `ab93953`, 2016) onto the maintained
@@ -70,5 +75,5 @@ Port of the fork to Debian 13 (trixie), Asterisk 24 LTS and FreePBX 17.
 ### Removed
 - Disabled Travis/GitHub workflow stub.
 
-[Unreleased]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/v2.0.0-rc.1...HEAD
-[2.0.0-rc.1]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/ab93953...v2.0.0-rc.1
+[Unreleased]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/ab93953...v2.0.0
