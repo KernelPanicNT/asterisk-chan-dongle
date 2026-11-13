@@ -8,6 +8,26 @@ The version number lives in [`VERSION`](VERSION) and is read by `configure.ac`.
 
 ## [Unreleased]
 
+### Added
+- Incoming SMS with 8 bit data coding are delivered when they carry text
+  (decoded as ISO-8859-1). Binary payloads (application port addressing or
+  control bytes, e.g. WAP push) are still rejected.
+- Operator voicemail notifications (DCS message-waiting groups `0xC`/`0xD`
+  GSM 7 bit and `0xE` UCS2) are decoded instead of rejected.
+
+### Fixed
+- Incoming SMS with a TP-PID other than `0x00` are accepted (since the
+  wdoekes base; chan_dongle 1.1 dropped them with "Unhandled PID value").
+  Covered by unit tests.
+- An SMS whose UCS2 text contained an unpaired UTF-16 surrogate — typically
+  a long message split in the middle of an emoji — was dropped with "Cannot
+  parse UCS-2". UTF-16 is now decoded without iconv: surrogate pairs are
+  combined and unpaired ones become U+FFFD.
+- Filler octets after the SMS user data no longer cause the message to be
+  rejected; truncated user data is reported as an invalid TPDU length.
+- 16 bit concatenation references (IEI `0x08`) were truncated to 8 bits, so
+  parts of two different long messages could be mixed up.
+
 ## [2.0.0] - 2026-11-13
 
 Port of the fork to Debian 13 (trixie), Asterisk 24 LTS and FreePBX 17.
