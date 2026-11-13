@@ -1,0 +1,52 @@
+name: release
+
+# Publishes a GitHub release for every vX.Y.Z tag that does not have one yet,
+# using the matching section of CHANGELOG.md as release notes.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Create missing releases from CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # ascending order, so the newest version ends up as "Latest"
+          for tag in $(git tag --list 'v[0-9]*' | sort -V); do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "$tag: release exists"
+              continue
+            fi
+            ver=${tag#v}
+            git show "$tag:CHANGELOG.md" 2>/dev/null |
+              awk -v v="$ver" '
+                index($0, "## [" v "]") == 1 { found = 1; next }
+                found && /^## \[/ { exit }
+                found && /^\[[^]]+\]: / { next }
+                found { print }
+              ' > notes.md
+            if ! grep -q '[^[:space:]]' notes.md; then
+              echo "::error::$tag: no '## [$ver]' section in CHANGELOG.md"
+              exit 1
+            fi
+            {
+              echo
+              echo "**Full changelog:** [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${tag}/CHANGELOG.md)"
+            } >> notes.md
+            flags=()
+            case "$ver" in *-*) flags+=(--prerelease) ;; esac
+            gh release create "$tag" --verify-tag --title "chan_dongle $ver" \
+              --notes-file notes.md "${flags[@]}"
+            echo "$tag: release created"
+          done
