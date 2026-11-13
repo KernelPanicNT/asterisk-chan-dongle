@@ -8,6 +8,8 @@ The version number lives in [`VERSION`](VERSION) and is read by `configure.ac`.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-13
+
 ### Added
 - Incoming SMS with 8 bit data coding are delivered when they carry text
   (decoded as ISO-8859-1). Binary payloads (application port addressing or
@@ -102,5 +104,6 @@ Debian 13 arm64 (Raspberry Pi) with Asterisk 22 and 24; FreePBX 17
 ### Removed
 - Disabled Travis/GitHub workflow stub.
 
-[Unreleased]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/KernelPanicNT/asterisk-chan-dongle/compare/ab93953...v2.0.0
